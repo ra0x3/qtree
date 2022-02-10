@@ -3,21 +3,6 @@ import pytest
 from qgraph import QueryKey, str_to_binary, Metadata, QueryObject, Node, Graph
 
 
-"""
-Queries with 0-bit prefix
-------
-00
-
-
-Queries with 1-bit prefix
-------
-nike shoes
-bloomberg
-zoo
-
-"""
-
-
 class TestKey:
     def test_query_key_bin_is_binary_of_query(self):
         query = "iphone 2017"
@@ -136,10 +121,41 @@ class TestGraph:
 
     def test_can_print_graph_using_level_order_traverse(self):
         g = Graph()
-        g.add("nike shoes")
-        g.add("bloomberg")
+        g.add("nike")
+        g.add("fool")
         g.add("00000000001")
 
-        output = g.print()
-        print(output)
-        assert len(output) == 191
+        g.print()
+
+    def test_stats_increments_seeks_for_every_seek_operation_in_graph(self):
+        g = Graph()
+        g.add("foo")
+        g.add("bar")
+
+        assert g.stats.seeks == 0
+
+        _ = "foo" in g
+
+        assert g.stats.seeks == 1
+
+    def test_stats_increments_hits_for_every_successful_find_operation_in_graph(self):
+        g = Graph()
+        g.add("foo")
+        g.add("bar")
+
+        assert g.stats.hits == 0
+
+        _ = "foo" in g
+
+        assert g.stats.hits == 1
+
+    def test_stats_increments_misses_for_every_unsucessful_find_operation_in_graph(self):
+        g = Graph()
+        g.add("foo")
+        g.add("bar")
+
+        assert g.stats.misses == 0
+
+        _ = "zoo" in g
+
+        assert g.stats.misses == 1

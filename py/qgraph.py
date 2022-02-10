@@ -1,6 +1,8 @@
 import json
 from typing import *
 
+from binarytree import build
+
 Primitive = Union[float, str, int, bool]
 
 
@@ -35,7 +37,7 @@ class QueryKey:
     def _is_binary(self) -> bool:
         set_ = {"0", "1"}
         s_set = set(self.query)
-        return s_set == set_ or s_set == {"0"} or s_set == {"1"}
+        return s_set == set_ or s_set in {"0", "1"}
 
     def __hash__(self):
         return hash(self.bin)
@@ -43,7 +45,9 @@ class QueryKey:
     def __len__(self):
         return len(self.bin)
 
-    def __eq__(self, other: Union[str, "QueryKey"]):
+    def __eq__(self, other: object):
+        if not isinstance(other, (QueryKey, str)):
+            raise NotImplementedError
         if isinstance(other, QueryKey):
             return self.bin == other.bin
         return other == self.bin
@@ -65,7 +69,9 @@ class Metadata:
     def update(self, **kwargs):
         self.__dict__.update(kwargs)
 
-    def __eq__(self, other: "Metadata"):
+    def __eq__(self, other: object):
+        if not isinstance(other, Metadata):
+            raise NotImplementedError
         return self.visits == other.visits and self.bottiness == other.bottiness
 
     def __getitem__(self, key: str) -> Optional[Primitive]:
@@ -78,7 +84,7 @@ class Metadata:
         return json.dumps(self.__dict__)
 
     def __repr__(self):
-        return "<{}>".format(json.dumps(self.__dict__))
+        return f"<{json.dumps(self.__dict__)}>"
 
 
 class QueryObject:
@@ -92,11 +98,13 @@ class QueryObject:
     def __hash__(self):
         return hash(self.key)
 
-    def __eq__(self, other: "QueryObject"):
+    def __eq__(self, other: object):
+        if not isinstance(other, QueryObject):
+            raise NotImplementedError
         return other.key == self.key and other.value == self.value
 
     def __repr__(self):
-        return "({} - {})".format(self.key, self.value)
+        return f"({self.key} - {self.value})"
 
 
 class Node:
@@ -111,35 +119,61 @@ class Node:
             return
         self.left = node
 
+    def is_leaf(self):
+        return self.right == self.left == None
+
     def update_metadata(self, **kwargs):
         self.query.value.update(**kwargs)
 
     def __repr__(self):
-        return "{}".format(self.query.key)
+        return f"{self.query.key}"
 
 
 default_start_key = ""
 
 
-def reset_root_node(func):
-    def _wrapper(cls: "Graph", *args, **kwargs):
-        result = func(cls, *args, **kwargs)
-        cls.reset_curr()
-        return result
+class GraphStats:
+    def __init__(self):
+        self.hits: float = 0.0
+        self.misses: float = 0.0
+        self.seeks: float = 0.0
 
-    return _wrapper
+    @property
+    def total(self) -> float:
+        return self.hits + self.misses
+
+    def hit(self):
+        self.hits += 1.0
+
+    def miss(self):
+        self.misses += 1.0
+
+    def seek(self):
+        self.seeks += 1.0
+
+    def hit_rate(self):
+        return self.hits / self.seeks if self.seeks > 0.0 else 0.0
+
+    def miss_rate(self):
+        return self.misses / self.seeks if self.seeks > 0.0 else 0.0
 
 
 class Graph:
     def __init__(self):
         self.root = Node(QueryObject(default_start_key))
         self.curr = self.root
-        self._node_count = 1
-        self._query_count = 0
+        self._node_count: int = 1
+        self._query_count: int = 0
+        self._stats: GraphStats = GraphStats()
+        self._last_seek: Optional[Node] = None
 
     @property
     def node_count(self) -> int:
         return self._node_count
+
+    @property
+    def stats(self) -> GraphStats:
+        return self._stats
 
     @property
     def query_count(self) -> int:
@@ -148,9 +182,15 @@ class Graph:
     def add(self, query: str):
         self._build_path(QueryObject(query))
 
-    def get(self, query: str) -> Optional[Metadata]:
+    def get(self, query: str) -> Optional[Node]:
         qobj = QueryObject(query)
         return self._dfs(qobj)
+
+    def delete(self, query: str):
+
+        _end = self.get(query)
+
+        raise NotImplementedError
 
     def update_node_metadata(self, query: str, **kwargs):
         node = self.get(query)
@@ -161,11 +201,16 @@ class Graph:
     def reset_root_node(self):
         self.curr = self.root
 
-    def print(self):
-        order = self._traverse_level_order()
-        return order
+    def level_order(self):
+        return self._traverse_level_order()
 
-    def _traverse_level_order(self) -> List[Node]:
+    def print(self):
+        order = self.level_order()
+        nodes = [item[1] for item in order]
+        keys = [int(key[-1]) if len(key) > 0 else -1 for key in nodes]
+        print(build(keys))
+
+    def _traverse_level_order(self) -> List[Tuple[int, str]]:
         result = []
         queue = [(0, self.curr)]
 
@@ -182,7 +227,8 @@ class Graph:
     def _dfs(self, qobj: QueryObject, path: str = "") -> Optional[Node]:
         if len(path) == len(qobj):
             if qobj.key and qobj.key == path:
-                return self.curr
+                node: Node = self.curr
+                return node
             return None
 
         if not self.curr:
@@ -214,8 +260,17 @@ class Graph:
             self._node_count += 1
 
             return self._build_path(qobj, pos + 1)
+        return None
 
     def __contains__(self, query: str):
+        self._stats.seek()
         qobj = QueryObject(query)
         node = self._dfs(qobj)
-        return node is not None
+
+        if node is not None:
+            self._stats.hit()
+            self._last_seek = node
+            return True
+
+        self._stats.miss()
+        return False
