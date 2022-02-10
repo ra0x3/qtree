@@ -134,28 +134,60 @@ default_start_key = ""
 
 class GraphStats:
     def __init__(self):
-        self.hits: float = 0.0
-        self.misses: float = 0.0
-        self.seeks: float = 0.0
+        self._hits: float = 0.0
+        self._misses: float = 0.0
+        self._seeks: float = 0.0
+        self._queries_size_raw_bytes: float = 0.0
+        self._queries_size_actual_bytes: float = 0.0
 
     @property
     def total(self) -> float:
         return self.hits + self.misses
 
+    @property
+    def hits(self) -> float:
+        return self._hits
+
+    @property
+    def misses(self) -> float:
+        return self._misses
+
+    @property
+    def seeks(self) -> float:
+        return self._seeks
+
+    @property
+    def queries_size_raw_bytes(self) -> float:
+        return self._queries_size_raw_bytes
+
+    @property
+    def queries_size_actual_bytes(self) -> float:
+        return self._queries_size_actual_bytes
+
+    @property
+    def space_saved(self) -> float:
+        return 1.0 - (self._queries_size_actual_bytes / self._queries_size_raw_bytes)
+
     def hit(self):
-        self.hits += 1.0
+        self._hits += 1.0
 
     def miss(self):
-        self.misses += 1.0
+        self._misses += 1.0
 
     def seek(self):
-        self.seeks += 1.0
+        self._seeks += 1.0
 
     def hit_rate(self):
         return self.hits / self.seeks if self.seeks > 0.0 else 0.0
 
     def miss_rate(self):
         return self.misses / self.seeks if self.seeks > 0.0 else 0.0
+
+    def size_query(self, qobj: QueryObject):
+        self._queries_size_raw_bytes += len(qobj)
+
+    def size_actual(self):
+        self._queries_size_actual_bytes += 1.0
 
 
 class Graph:
@@ -180,7 +212,9 @@ class Graph:
         return self._query_count
 
     def add(self, query: str):
-        self._build_path(QueryObject(query))
+        qobj = QueryObject(query)
+        self._stats.size_query(qobj)
+        self._build_path(qobj)
 
     def get(self, query: str) -> Optional[Node]:
         qobj = QueryObject(query)
@@ -252,10 +286,12 @@ class Graph:
             if ch == "1":
                 if self.curr.right is None:
                     self.curr.right = Node(path)
+                    self._stats.size_actual()
                 self.curr = self.curr.right
             else:
                 if self.curr.left is None:
                     self.curr.left = Node(path)
+                    self._stats.size_actual()
                 self.curr = self.curr.left
             self._node_count += 1
 

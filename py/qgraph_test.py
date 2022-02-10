@@ -127,6 +127,8 @@ class TestGraph:
 
         g.print()
 
+
+class TestGraphStats:
     def test_stats_increments_seeks_for_every_seek_operation_in_graph(self):
         g = Graph()
         g.add("foo")
@@ -159,3 +161,25 @@ class TestGraph:
         _ = "zoo" in g
 
         assert g.stats.misses == 1
+
+    def test_adding_query_to_graph_increments_graph_stats_queries_size_raw_bytes(self):
+        g = Graph()
+
+        assert g.stats.queries_size_raw_bytes == 0
+
+        g.add("foo")
+        g.add("bar")
+
+        assert g.stats.queries_size_raw_bytes == 42.0
+
+    def test_adding_query_to_graph_increments_graph_stats_queries_size_actual_bytes(self):
+        g = Graph()
+
+        assert g.stats.queries_size_raw_bytes == 0
+
+        g.add("foo")
+        g.add("bar")
+
+        assert g.stats.queries_size_actual_bytes == 38.0
+        assert g.stats.queries_size_actual_bytes <= g.stats.queries_size_raw_bytes
+        assert g.stats.space_saved == 0.09523809523809523
