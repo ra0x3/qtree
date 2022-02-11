@@ -31,7 +31,7 @@ def str_to_binary(s: str) -> str:
 
 class QueryKey:
     def __init__(self, query: str):
-        self.query = query
+        self.query = str(query)
         self.bin = str_to_binary(self.query) if not self._is_binary() else self.query
 
     def _is_binary(self) -> bool:
