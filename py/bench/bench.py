@@ -1,13 +1,26 @@
 import os
 import sys
 import time
+import string
+import random
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from objsize import get_deep_size
 
-from qgraph.qgraph import Node, Graph
+from qgraph.qgraph import Node, Graph, QueryObject
+
+
+random.seed(49203)
+
+chars = list(string.ascii_letters + string.digits)
+
+
+def random_query(n=2, m=9):
+    x = random.randint(n, m)
+    return "".join([random.choice(chars) for _ in range(x)])
 
 
 def timeit(func):
@@ -21,15 +34,42 @@ def timeit(func):
     return _timeit
 
 
-def plot_node_count_by_query_count():
-    queries = ["bloomberg", "nasa", "007", "something else there", "dude"]
+@timeit
+def query_analysis():
+    data = load_queries_random()
+    unique = set(data)
+    return {
+        "count": {
+            "total": len(data),
+            "unique_count": len(unique),
+            "unique_ratio": len(unique) / len(data),
+        },
+        "len": {
+            "shortest": len(min(data, key=len)),
+            "longest": len(max(data, key=len)),
+            "average": sum([len(item) for item in data]) / len(data),
+            "average_unique": sum([len(item) for item in unique]) / len(unique),
+        },
+    }
 
-    # query_count = 5
-    # g = Graph()
-    # for (i, q) in enumerate(queries):
-    #     g.add(q)
-    # x = np.arange(g.query_count)
-    # y = []
+
+@timeit
+def load_queries_random(n=1_000_000):
+    return [random_query() for _ in range(n)]
+
+
+@timeit
+def load_queries_book():
+    data = []
+    queries_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "book.txt"
+    )
+    with open(queries_file, "r") as f:
+        for line in f.readlines():
+            words = line.split()
+            data.extend(words)
+
+    return [query.replace("\n", "") for query in data]
 
 
 @timeit
@@ -45,19 +85,26 @@ def load_queries_txt():
 
 
 @timeit
+def avg_size_of_book():
+    data = load_queries_book()
+    return sum([sys.getsizeof(Node(QueryObject(query))) for query in data]) / len(data)
+
+
+@timeit
 def graph_space_raw_vs_actual():
     g = Graph()
     data = []
-    queries = load_queries_txt()
-    for q in tqdm(range(len(queries))):
+    queries = load_queries_random(n=1000)
+    for i in tqdm(range(len(queries))):
+        q = queries[i]
         g.add(q)
 
         data.append(
             {
-                "query_count": g.query_count,
                 "node_count": g.node_count,
-                "raw_size": g.stats.queries_size_raw_bytes,
-                "actual_size": g.stats.queries_size_actual_bytes,
+                "queries_size_raw_bytes": g.queries_size_raw_bytes,
+                "queries_size_actual_bytes": g.queries_size_actual_bytes,
+                "graph_size": get_deep_size(g),
             }
         )
 
@@ -68,7 +115,9 @@ def graph_space_raw_vs_actual():
     ax.set_ylabel("Node count & Raw/Actual size")
 
     df = pd.DataFrame(data)
-    df.plot(ax=ax, colormap="Dark2")
+    df.plot(ax=ax)
+
+    # df["delta"] = df["queries_size_actual_bytes"] + (sys.getsizeof(df.no))
 
     print(df.tail(10))
 

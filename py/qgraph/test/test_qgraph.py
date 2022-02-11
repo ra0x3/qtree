@@ -1,6 +1,6 @@
 import pytest
 
-from qgraph import QueryKey, str_to_binary, Metadata, QueryObject, Node, Graph
+from qgraph.qgraph import QueryKey, str_to_binary, Metadata, QueryObject, Node, Graph
 
 
 class TestKey:
@@ -106,7 +106,7 @@ class TestGraph:
         g.add("zoo")
 
         assert g.query_count == 4
-        assert g.node_count == 85
+        assert g.node_count == 62
 
     def test_update_node_metadata_updates_metdata_for_node_when_node_in_graph(self):
         g = Graph()
@@ -127,59 +127,57 @@ class TestGraph:
 
         g.print()
 
-
-class TestGraphStats:
     def test_stats_increments_seeks_for_every_seek_operation_in_graph(self):
         g = Graph()
         g.add("foo")
         g.add("bar")
 
-        assert g.stats.seeks == 0
+        assert g.seeks == 0
 
         _ = "foo" in g
 
-        assert g.stats.seeks == 1
+        assert g.seeks == 1
 
     def test_stats_increments_hits_for_every_successful_find_operation_in_graph(self):
         g = Graph()
         g.add("foo")
         g.add("bar")
 
-        assert g.stats.hits == 0
+        assert g.hits == 0
 
         _ = "foo" in g
 
-        assert g.stats.hits == 1
+        assert g.hits == 1
 
     def test_stats_increments_misses_for_every_unsucessful_find_operation_in_graph(self):
         g = Graph()
         g.add("foo")
         g.add("bar")
 
-        assert g.stats.misses == 0
+        assert g.misses == 0
 
         _ = "zoo" in g
 
-        assert g.stats.misses == 1
+        assert g.misses == 1
 
     def test_adding_query_to_graph_increments_graph_stats_queries_size_raw_bytes(self):
         g = Graph()
 
-        assert g.stats.queries_size_raw_bytes == 0
+        assert g.queries_size_raw_bytes == 0
 
         g.add("foo")
         g.add("bar")
 
-        assert g.stats.queries_size_raw_bytes == 42.0
+        assert g.queries_size_raw_bytes == 42.0
 
     def test_adding_query_to_graph_increments_graph_stats_queries_size_actual_bytes(self):
         g = Graph()
 
-        assert g.stats.queries_size_raw_bytes == 0
+        assert g.queries_size_raw_bytes == 0
 
         g.add("foo")
         g.add("bar")
 
-        assert g.stats.queries_size_actual_bytes == 38.0
-        assert g.stats.queries_size_actual_bytes <= g.stats.queries_size_raw_bytes
-        assert g.stats.space_saved == 0.09523809523809523
+        assert g.queries_size_actual_bytes == 38.0
+        assert g.queries_size_actual_bytes <= g.queries_size_raw_bytes
+
