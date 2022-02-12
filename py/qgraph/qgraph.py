@@ -1,8 +1,6 @@
 import json
 from typing import *
 
-from binarytree import build
-
 Primitive = Union[float, str, int, bool]
 
 
@@ -18,7 +16,8 @@ class QueryKey:
     def _is_binary(self) -> bool:
         set_ = {"0", "1"}
         s_set = set(self.query)
-        return s_set == set_ or s_set in {"0", "1"}
+        x = s_set == set_ or self.query in {"0", "1"}
+        return x
 
     def __hash__(self):
         return hash(self.bin)
@@ -85,12 +84,13 @@ class QueryObject:
         return other.key == self.key and other.value == self.value
 
     def __repr__(self):
-        return f"({self.key} - {self.value})"
+        return self.key
 
 
 class Node:
     def __init__(self, query: QueryObject):
         self.query = query
+        self.char = "-1" if self.is_root() else self.query.key.bin[-1]
         self.left: Optional[Node] = None
         self.right: Optional[Node] = None
 
@@ -99,6 +99,9 @@ class Node:
             self.right = node
             return
         self.left = node
+
+    def is_root(self):
+        return self.query.key.query == ""
 
     def is_leaf(self):
         return self.right == self.left == None
@@ -163,7 +166,7 @@ class Graph:
 
     def get(self, query: str) -> Optional[Node]:
         qobj = QueryObject(query)
-        return self._dfs(qobj)
+        return self._traverse_dfs(qobj)
 
     def delete(self, query: str):
 
@@ -180,30 +183,27 @@ class Graph:
     def reset_root_node(self):
         self.curr = self.root
 
-    def level_order(self):
-        return self._traverse_level_order()
-
     def print(self):
-        order = self.level_order()
-        nodes = [item[1] for item in order]
-        keys = [int(key[-1]) if len(key) > 0 else -1 for key in nodes]
-        print(build(keys))
+        raise NotImplementedError
 
-    def _traverse_level_order(self) -> List[Tuple[int, str]]:
-        result = []
-        queue = [(0, self.curr)]
+    def _traverse_level(self) -> List[List[str]]:
 
-        while queue:
-            level, node = queue.pop(0)
-            if node is None:
-                continue
-            result.append((level, str(node.query.key)))
-            queue.append((level + 1, node.left))
-            queue.append((level + 1, node.right))
+        result: List[List[str]] = []
 
+        def _traverse(node: Node, level=0):
+            if len(result) <= level:
+                result.append([])
+
+            result[level].append(str(node))
+            if node.left:
+                _traverse(node.left, level + 1)
+            if node.right:
+                _traverse(node.right, level + 1)
+
+        _traverse(self.curr, 0)
         return result
 
-    def _dfs(self, qobj: QueryObject, path: str = "") -> Optional[Node]:
+    def _traverse_dfs(self, qobj: QueryObject, path: str = "") -> Optional[Node]:
         if len(path) == len(qobj):
             if qobj.key and qobj.key == path:
                 node: Node = self.curr
@@ -219,9 +219,10 @@ class Graph:
         else:
             self.curr = self.curr.left
 
-        return self._dfs(qobj, path + ch)
+        return self._traverse_dfs(qobj, path + ch)
 
-    def _build_path(self, qobj: QueryObject, pos=0) -> Optional[int]:
+    def _build_path(self, qobj: QueryObject, pos=0, curr: Optional[Node] = None) -> Optional[int]:
+        curr = curr or self.root
         if pos == len(qobj):
             self._query_count += 1
             self.reset_root_node()
@@ -229,25 +230,24 @@ class Graph:
             ch = qobj.key.bin[pos]
             path = QueryObject(qobj.key.bin[: pos + 1])
             if ch == "1":
-                if self.curr.right is None:
+                if curr.right is None:
                     self._node_count += 1
-                    self.curr.right = Node(path)
+                    curr.right = Node(path)
                     self._stats["queries_size_actual_bytes"] += 1
-                self.curr = self.curr.right
+                curr = curr.right
             else:
-                if self.curr.left is None:
+                if curr.left is None:
                     self._node_count += 1
-                    self.curr.left = Node(path)
+                    curr.left = Node(path)
                     self._stats["queries_size_actual_bytes"] += 1
-                self.curr = self.curr.left
-
-            return self._build_path(qobj, pos + 1)
+                curr = curr.left
+            return self._build_path(qobj, pos + 1, curr)
         return None
 
     def __contains__(self, query: str):
         self._stats["seeks"] += 1
         qobj = QueryObject(query)
-        node = self._dfs(qobj)
+        node = self._traverse_dfs(qobj)
 
         if node is not None:
             self._stats["hits"] += 1

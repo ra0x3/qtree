@@ -3,6 +3,10 @@ import pytest
 from qgraph.qgraph import QueryKey, str_to_binary, Metadata, QueryObject, Node, Graph
 
 
+class TestUtils:
+    def test_str_to_binary_returns_binary_str_of_input_str(self):
+        assert str_to_binary("abc") == "110000111000101100011"
+
 class TestKey:
     def test_query_key_bin_is_binary_of_query(self):
         query = "iphone 2017"
@@ -119,7 +123,8 @@ class TestGraph:
         node.query.value["first_name"] == "Ava"
         node.query.value["last_name"] == "Noel"
 
-    def test_can_print_graph_using_level_order_traverse(self):
+    @pytest.mark.skip(reason="Not implemented")
+    def test_can_print_graph(self):
         g = Graph()
         g.add("nike")
         g.add("fool")
@@ -181,3 +186,4 @@ class TestGraph:
         assert g.queries_size_actual_bytes == 38.0
         assert g.queries_size_actual_bytes <= g.queries_size_raw_bytes
 
+ 
