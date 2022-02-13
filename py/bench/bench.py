@@ -10,7 +10,7 @@ import numpy as np
 from tqdm import tqdm
 from objsize import get_deep_size
 
-from qgraph.qgraph import Node, Graph, QueryObject
+from qgraph.qgraph import Node, Graph
 
 
 random.seed(49203)
@@ -87,7 +87,7 @@ def load_queries_txt():
 @timeit
 def avg_size_of_book():
     data = load_queries_book()
-    return sum([sys.getsizeof(Node(QueryObject(query))) for query in data]) / len(data)
+    return sum([sys.getsizeof(Node(query)) for query in data]) / len(data)
 
 
 @timeit
@@ -103,7 +103,7 @@ def graph_space_raw_vs_actual():
             {
                 "node_count": g.node_count,
                 "queries_size_raw_bytes": g.queries_size_raw_bytes,
-                "queries_size_actual_bytes": g.queries_size_actual_bytes,
+                "queries_size_actual_bytes": g.queries_size_actual_bits / 8.0,
                 "graph_size": get_deep_size(g),
             }
         )
@@ -116,8 +116,6 @@ def graph_space_raw_vs_actual():
 
     df = pd.DataFrame(data)
     df.plot(ax=ax)
-
-    # df["delta"] = df["queries_size_actual_bytes"] + (sys.getsizeof(df.no))
 
     print(df.tail(10))
 

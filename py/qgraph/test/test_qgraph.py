@@ -1,6 +1,6 @@
 import pytest
 
-from qgraph.qgraph import QueryKey, str_to_binary, Metadata, QueryObject, Node, Graph
+from qgraph.qgraph import QueryKey, str_to_binary, Metadata, Node, Graph
 
 
 class TestUtils:
@@ -26,25 +26,20 @@ class TestKey:
 
 class TestMetadata:
     def test_can_create_metadata(self):
-        meta = Metadata()
-        assert isinstance(meta.bottiness, float)
+        meta = Metadata(0, 0, 0)
+        assert isinstance(meta.bottiness, int)
 
-
-class TestQueryObject:
-    def test_can_create(self):
-        qobject = QueryObject("nike shoes")
-        assert len(qobject) == len(qobject.key)
 
 
 class TestNode:
     def test_can_create_root_node(self):
-        node = Node(QueryObject("bloomberg"))
+        node = Node("bloomberg")
         assert node.left is None
         assert node.right is None
 
     def test_add_child_inserts_0_at_left_child(self):
-        node = Node(QueryObject("foo"))
-        child = Node(QueryObject("bar"))
+        node = Node("foo")
+        child = Node("bar")
 
         node.add_child(child)
 
@@ -52,8 +47,8 @@ class TestNode:
         assert node.right is None
 
     def test_add_child_inserts_1_at_right_child(self):
-        node = Node(QueryObject("foo"))
-        child = Node(QueryObject("zoo"))
+        node = Node("foo")
+        child = Node("zoo")
 
         node.add_child(child)
 
@@ -67,14 +62,14 @@ class TestGraph:
         assert isinstance(g.root, Node)
         assert g.query_count == 0
         assert g.node_count == 1
-        assert g.root.query.key == QueryKey("")
+        assert g.root.query == QueryKey("")
 
     def test_can_add_node_to_graph_when_node_is_not_in_graph(self):
         g = Graph()
         g.add("foo")
         assert g.node_count == len(QueryKey("foo")) + 1
 
-        assert g.root.query == QueryObject("")
+        assert g.root.query == ""
 
     def test_can_find_query_in_graph_when_query_is_present(self):
         g = Graph()
@@ -93,7 +88,7 @@ class TestGraph:
         node = g.get("zoo")
 
         assert isinstance(node, Node)
-        assert node.query == QueryObject("zoo")
+        assert node.query == QueryKey("zoo")
 
     def test_get_returns_none_when_query_does_not_exist_in_graph(self):
         g = Graph()
@@ -112,6 +107,7 @@ class TestGraph:
         assert g.query_count == 4
         assert g.node_count == 62
 
+    @pytest.mark.skip(reason="Deprecated")
     def test_update_node_metadata_updates_metdata_for_node_when_node_in_graph(self):
         g = Graph()
         g.add("foo")
@@ -173,9 +169,9 @@ class TestGraph:
         g.add("foo")
         g.add("bar")
 
-        assert g.queries_size_raw_bytes == 42.0
+        assert g.queries_size_raw_bytes ==6
 
-    def test_adding_query_to_graph_increments_graph_stats_queries_size_actual_bytes(self):
+    def test_adding_query_to_graph_increments_graph_stats_queries_size_actual_bits(self):
         g = Graph()
 
         assert g.queries_size_raw_bytes == 0
@@ -183,7 +179,5 @@ class TestGraph:
         g.add("foo")
         g.add("bar")
 
-        assert g.queries_size_actual_bytes == 38.0
-        assert g.queries_size_actual_bytes <= g.queries_size_raw_bytes
-
+        assert g.queries_size_actual_bits == 38.0
  

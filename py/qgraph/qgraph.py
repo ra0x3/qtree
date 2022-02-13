@@ -1,4 +1,4 @@
-import json
+import collections
 from typing import *
 
 Primitive = Union[float, str, int, bool]
@@ -8,19 +8,23 @@ def str_to_binary(s: str) -> str:
     return "".join([format(item, "b") for item in bytearray(s, "utf-8")])
 
 
+def is_binary(s: str) -> bool:
+    set_ = {"0", "1"}
+    s_set = set(s)
+    return s_set == set_ or str(s) in {"0", "1"}
+
+
 class QueryKey:
     def __init__(self, query: str):
-        self.query = str(query)
-        self.bin = str_to_binary(self.query) if not self._is_binary() else self.query
+        self._bin = str_to_binary(query) if not is_binary(query) else query
+        self.char = "-1" if not query else str_to_binary(query)[-1]
 
-    def _is_binary(self) -> bool:
-        set_ = {"0", "1"}
-        s_set = set(self.query)
-        x = s_set == set_ or self.query in {"0", "1"}
-        return x
+    @property
+    def bin(self):
+        return self._bin
 
-    def __hash__(self):
-        return hash(self.bin)
+    def prune(self):
+        del self._bin
 
     def __len__(self):
         return len(self.bin)
@@ -40,62 +44,21 @@ class QueryKey:
             yield ch
 
 
-class Metadata:
-    def __init__(self):
-        self.visits = 0
-        self.bottiness = 0.0
-        self.count = 0
-
-    def update(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-    def __eq__(self, other: object):
-        if not isinstance(other, Metadata):
-            raise NotImplementedError
-        return self.visits == other.visits and self.bottiness == other.bottiness
-
-    def __getitem__(self, key: str) -> Optional[Primitive]:
-        return self.__dict__.get(key)
-
-    def __setitem__(self, key: str, value: Primitive):
-        self.__dict__[key] = value
-
-    def __str__(self):
-        return json.dumps(self.__dict__)
-
-    def __repr__(self):
-        return f"<{json.dumps(self.__dict__)}>"
-
-
-class QueryObject:
-    def __init__(self, key: str):
-        self.key = QueryKey(key)
-        self.value = Metadata()
-
-    def __len__(self):
-        return len(self.key)
-
-    def __hash__(self):
-        return hash(self.key)
-
-    def __eq__(self, other: object):
-        if not isinstance(other, QueryObject):
-            raise NotImplementedError
-        return other.key == self.key and other.value == self.value
-
-    def __repr__(self):
-        return self.key
+Metadata = collections.namedtuple("Metadata", "visits bottiness count")
 
 
 class Node:
-    def __init__(self, query: QueryObject):
-        self.query = query
-        self.char = "-1" if self.is_root() else self.query.key.bin[-1]
+    def __init__(self, query: str):
+        self.query = QueryKey(query)
         self.left: Optional[Node] = None
         self.right: Optional[Node] = None
 
+    @property
+    def char(self):
+        return "-1" if self.is_root() else self.query.key.bin[-1]
+
     def add_child(self, node: "Node"):
-        if node.query.key.bin[-1] == "1":
+        if node.query.bin[-1] == "1":
             self.right = node
             return
         self.left = node
@@ -106,19 +69,13 @@ class Node:
     def is_leaf(self):
         return self.right == self.left == None
 
-    def update_metadata(self, **kwargs):
-        self.query.value.update(**kwargs)
 
-    def __repr__(self):
-        return f"{self.query.key}"
-
-
-default_start_key = ""
+default_start_query = ""
 
 
 class Graph:
     def __init__(self):
-        self.root = Node(QueryObject(default_start_key))
+        self.root = Node(default_start_query)
         self.curr = self.root
         self._node_count: int = 1
         self._query_count: int = 0
@@ -128,7 +85,7 @@ class Graph:
             "misses": 0,
             "seeks": 0,
             "queries_size_raw_bytes": 0,
-            "queries_size_actual_bytes": 0,
+            "queries_size_actual_bits": 0,
         }
 
     @property
@@ -148,8 +105,8 @@ class Graph:
         return self._stats["queries_size_raw_bytes"]
 
     @property
-    def queries_size_actual_bytes(self) -> int:
-        return self._stats["queries_size_actual_bytes"]
+    def queries_size_actual_bits(self) -> int:
+        return self._stats["queries_size_actual_bits"]
 
     @property
     def node_count(self) -> int:
@@ -160,25 +117,19 @@ class Graph:
         return self._query_count
 
     def add(self, query: str):
-        qobj = QueryObject(query)
-        self._stats["queries_size_raw_bytes"] += len(qobj)
-        self._build_path(qobj)
+        qkey = QueryKey(query)
+        self._stats["queries_size_raw_bytes"] += len(query)
+        self._build_path(qkey)
 
     def get(self, query: str) -> Optional[Node]:
-        qobj = QueryObject(query)
-        return self._traverse_dfs(qobj)
+        qkey = QueryKey(query)
+        return self._traverse_dfs(qkey)
 
     def delete(self, query: str):
 
         _end = self.get(query)
 
         raise NotImplementedError
-
-    def update_node_metadata(self, query: str, **kwargs):
-        node = self.get(query)
-        if node:
-            node.update_metadata(**kwargs)
-        return self.reset_root_node()
 
     def reset_root_node(self):
         self.curr = self.root
@@ -203,9 +154,9 @@ class Graph:
         _traverse(self.curr, 0)
         return result
 
-    def _traverse_dfs(self, qobj: QueryObject, path: str = "") -> Optional[Node]:
-        if len(path) == len(qobj):
-            if qobj.key and qobj.key == path:
+    def _traverse_dfs(self, qkey: QueryKey, path: str = "") -> Optional[Node]:
+        if len(path) == len(qkey):
+            if qkey and qkey == path:
                 node: Node = self.curr
                 return node
             return None
@@ -213,41 +164,41 @@ class Graph:
         if not self.curr:
             return None
 
-        ch = qobj.key.bin[len(path)]
+        ch = qkey.bin[len(path)]
         if ch == "1":
             self.curr = self.curr.right
         else:
             self.curr = self.curr.left
 
-        return self._traverse_dfs(qobj, path + ch)
+        return self._traverse_dfs(qkey, path + ch)
 
-    def _build_path(self, qobj: QueryObject, pos=0, curr: Optional[Node] = None) -> Optional[int]:
+    def _build_path(self, qkey: QueryKey, pos=0, curr: Optional[Node] = None) -> Optional[int]:
         curr = curr or self.root
-        if pos == len(qobj):
+        if pos == len(qkey):
             self._query_count += 1
             self.reset_root_node()
-        elif pos < len(qobj):
-            ch = qobj.key.bin[pos]
-            path = QueryObject(qobj.key.bin[: pos + 1])
+        elif pos < len(qkey):
+            ch = qkey.bin[pos]
+            path = qkey.bin[: pos + 1]
             if ch == "1":
                 if curr.right is None:
                     self._node_count += 1
                     curr.right = Node(path)
-                    self._stats["queries_size_actual_bytes"] += 1
+                    self._stats["queries_size_actual_bits"] += 1
                 curr = curr.right
             else:
                 if curr.left is None:
                     self._node_count += 1
                     curr.left = Node(path)
-                    self._stats["queries_size_actual_bytes"] += 1
+                    self._stats["queries_size_actual_bits"] += 1
                 curr = curr.left
-            return self._build_path(qobj, pos + 1, curr)
+            return self._build_path(qkey, pos + 1, curr)
         return None
 
     def __contains__(self, query: str):
         self._stats["seeks"] += 1
-        qobj = QueryObject(query)
-        node = self._traverse_dfs(qobj)
+        qkey = QueryKey(query)
+        node = self._traverse_dfs(qkey)
 
         if node is not None:
             self._stats["hits"] += 1
