@@ -8,7 +8,7 @@ pub struct Node {
 pub fn to_binary_str(x: String) -> String {
     let mut result = "".to_string();
     for ch in x.clone().as_bytes() {
-        result += &format!("0{:b}", ch);
+        result += &format!("{:b}", ch);
     }
     result
 }
@@ -43,13 +43,13 @@ pub mod test {
     #[test]
     fn test_to_binary_str_returns_binary_str_of_str() {
         let result = to_binary_str("abc".to_string());
-        assert_eq!(result, "011000010110001001100011".to_string());
+        assert_eq!(result, "110000111000101100011".to_string());
     }
 
     #[test]
     fn test_can_create_new_node_with_empty_children() {
         let node = Node::new("foo".to_string());
-        assert_eq!(node.bin, "011001100110111101101111".to_string());
+        assert_eq!(node.bin, "110011011011111101111".to_string());
         assert_eq!(*node.left, None);
         assert_eq!(*node.right, None);
     }

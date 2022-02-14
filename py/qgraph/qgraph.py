@@ -55,7 +55,7 @@ class Node:
 
     @property
     def char(self):
-        return "-1" if self.is_root() else self.query.key.bin[-1]
+        return "-1" if self.is_root() else self.query.bin[-1]
 
     def add_child(self, node: "Node"):
         if node.query.bin[-1] == "1":
@@ -64,7 +64,7 @@ class Node:
         self.left = node
 
     def is_root(self):
-        return self.query.key.query == ""
+        return self.query == ""
 
     def is_leaf(self):
         return self.right == self.left == None

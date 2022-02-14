@@ -123,8 +123,7 @@ class TestGraph:
     def test_can_print_graph(self):
         g = Graph()
         g.add("nike")
-        g.add("fool")
-        g.add("00000000001")
+        g.add("foo")
 
         g.print()
 
