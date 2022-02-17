@@ -1,4 +1,5 @@
 #[derive(Clone, Debug, Eq, PartialEq)]
+
 pub struct Node {
     bin: String,
     left: Box<Option<Node>>,
@@ -20,6 +21,10 @@ impl Node {
             left: Box::new(None),
             right: Box::new(None),
         }
+    }
+
+    pub fn len(&self) -> usize {
+        self.bin.len()
     }
 
     pub fn add_child(&mut self, node: Self) {
@@ -62,5 +67,11 @@ pub mod test {
         node.add_child(child);
         assert_eq!(*node.left, Some(child_clone));
         assert_eq!(*node.right, None);
+    }
+
+    #[test]
+    fn test_len_returns_size_of_binary_str() {
+        let node = Node::new("foo".to_string());
+        assert_eq!(node.len(), 21);
     }
 }
