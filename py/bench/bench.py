@@ -97,14 +97,15 @@ def graph_space_raw_vs_actual():
     queries = load_queries_random(n=1000)
     for i in tqdm(range(len(queries))):
         q = queries[i]
-        g.add(q)
+        g.add(q.encode())
 
         data.append(
             {
                 "node_count": g.node_count,
                 "queries_size_raw_bytes": g.queries_size_raw_bytes,
-                "queries_size_actual_bytes": g.queries_size_actual_bits / 8.0,
+                "queries_size_actual_bytes": g.queries_size_actual_bytes,
                 "graph_size": get_deep_size(g),
+                "query_count": g.query_count,
             }
         )
 
