@@ -1,15 +1,25 @@
 import collections
+import abc
 from typing import *
+from objsize import get_deep_size
 
 Primitive = Union[float, str, int, bool]
-
-zero: bytes = b"0"
-one: bytes = b"1"
-two: bytes = b"2"
 
 
 def str_to_binary(s: bytes) -> bytes:
     return "".join(list("".join([format(b, "b") for b in s]))).encode("utf-8")
+
+
+def char_at(s: bytes, pos: int) -> Optional[int]:
+    try:
+        return s[pos]
+    except IndexError:
+        return None
+
+
+def append_bpath(b: int, path: bytes) -> bytes:
+    ch = b"1" if b == 49 else b"0"
+    return path + ch
 
 
 def is_exclusively_01(s: bytes) -> bool:
@@ -17,6 +27,19 @@ def is_exclusively_01(s: bytes) -> bool:
         if not ch in (48, 49):
             return False
     return True
+
+
+class LightKey:
+    def __init__(self, char: int):
+        self.char = char
+
+    def __str__(self):
+        return chr(self.char)
+
+    def __eq__(self, other: object):
+        if not isinstance(other, LightKey):
+            raise NotImplementedError
+        return self.char == other.char
 
 
 class QueryKey:
@@ -27,11 +50,11 @@ class QueryKey:
     def bin(self) -> bytes:
         return self._bin
 
-    def prune(self):
-        del self._bin
-
-    def char_at(self, pos: int) -> int:
-        return self._bin[pos]
+    # def char_at(self, pos: int) -> Optional[bytes]:
+    #     try:
+    #         return chr(self._bin[pos]).encode()
+    #     except IndexError:
+    #         return None
 
     def slice_to(self, pos: int) -> bytes:
         return self._bin[:pos]
@@ -57,21 +80,10 @@ class QueryKey:
 Metadata = collections.namedtuple("Metadata", "visits bottiness count")
 
 
-class Node:
-    def __init__(self, query: bytes):
-        self.query = QueryKey(query)
-        self.left: Optional[Node] = None
-        self.right: Optional[Node] = None
-
-    @property
-    def char(self) -> Union[bytes, int]:
-        return two if self.is_root() else self.query.bin[-1]
-
-    def add_child(self, node: "Node"):
-        if node.query.bin[-1] == one:
-            self.right = node
-            return
-        self.left = node
+class Node(abc.ABC):
+    @abc.abstractmethod
+    def add_child(self, node):
+        raise NotImplementedError
 
     def is_root(self):
         return self.query == b""
@@ -80,22 +92,60 @@ class Node:
         return self.right == self.left == None
 
 
-default_start_query = two
+class HistoryNode(Node):
+    def __init__(self, query: bytes):
+        self.query = QueryKey(query)
+        self.left: Optional[HistoryNode] = None
+        self.right: Optional[HistoryNode] = None
+
+    @property
+    def char(self) -> Union[bytes, int]:
+        return b"-1" if self.is_root() else self.query.bin[-1]
+
+    def add_child(self, node: "HistoryNode"):
+        if node.query.bin[-1] == b"1":
+            self.right = node
+        else:
+            self.left = node
+
+
+class LightNode(Node):
+    def __init__(self, query: int):
+        self.query = query
+        self.left: Optional[LightNode] = None
+        self.right: Optional[LightNode] = None
+        self.children: OrderedDict[LightNode, LightNode] = collections.OrderedDict()
+
+    def add_child(self, node: "LightNode"):
+        if node.query >= self.query:
+            self.right = node
+        else:
+            self.left = node
+
+    def __eq__(self, other: object):
+        if not isinstance(other, (LightNode, int)):
+            raise NotImplementedError
+        if isinstance(other, LightNode):
+            return other.query == self.query
+        return other == self.query
+
+
+default_start_query = 50
 
 
 class Graph:
     def __init__(self):
-        self.root = Node(default_start_query)
+        self.root = LightNode(default_start_query)
         self.curr = self.root
         self._node_count: int = 1
         self._query_count: int = 0
-        self._last_seek: Optional[Node] = None
+        self._last_seek: Optional[LightNode] = None
         self._stats: Dict[str, int] = {
             "hits": 0,
             "misses": 0,
             "seeks": 0,
             "queries_size_raw_bytes": 0,
-            "queries_size_actual_bits": 0,
+            "queries_size_actual_bytes": 0,
         }
 
     @property
@@ -115,8 +165,8 @@ class Graph:
         return self._stats["queries_size_raw_bytes"]
 
     @property
-    def queries_size_actual_bits(self) -> int:
-        return self._stats["queries_size_actual_bits"]
+    def queries_size_actual_bytes(self) -> int:
+        return self._stats["queries_size_actual_bytes"]
 
     @property
     def node_count(self) -> int:
@@ -127,13 +177,13 @@ class Graph:
         return self._query_count
 
     def add(self, query: bytes):
-        qkey = QueryKey(query)
-        self._stats["queries_size_raw_bytes"] += len(query)
-        self._build_path(qkey)
+        self._stats["queries_size_raw_bytes"] += get_deep_size(query)
+        self._build_path(query)
 
-    def get(self, query: bytes) -> Optional[Node]:
-        qkey = QueryKey(query)
-        return self._traverse(qkey)
+    def get(self, query: bytes) -> Optional[LightNode]:
+        _ = self._traverse(query)
+        copy: LightNode = self.curr
+        return copy
 
     def reset_root_node(self):
         self.curr = self.root
@@ -141,55 +191,49 @@ class Graph:
     def print(self):
         raise NotImplementedError
 
-    def _traverse(self, qkey: QueryKey, path: bytes = b"") -> Optional[Node]:
-        if len(path) == len(qkey):
-            if qkey and qkey == path:
-                node: Node = self.curr
-                return node
-            return None
-
+    def _traverse(self, query: bytes, path: str = "") -> Optional[str]:
         if not self.curr:
             return None
 
-        ch = qkey.char_at(len(path))
-        if ch == 49:
+        ch = char_at(query, len(path))
+        if ch is None:
+            return path
+
+        if ch > self.curr.query:
             self.curr = self.curr.right
         else:
             self.curr = self.curr.left
 
-        bch = one if ch == 49 else zero
+        return self._traverse(query, path + chr(ch))
 
-        return self._traverse(qkey, path + bch)
-
-    def _build_path(self, qkey: QueryKey, pos=0, curr: Optional[Node] = None):
+    def _build_path(self, query: bytes, pos: int = 0, curr: Optional[LightNode] = None, path: str = ""):
         curr = curr or self.root
-        if pos == len(qkey):
+        ch = char_at(query, pos)
+        if ch is None:
             self._query_count += 1
             self.reset_root_node()
-        elif pos < len(qkey):
-            ch = qkey.char_at(pos)
-            path = qkey.slice_to(pos + 1)
-            if ch == 49:
-                if curr.right is None:
-                    self._node_count += 1
-                    curr.right = Node(path)
-                    self._stats["queries_size_actual_bits"] += 1
-                curr = curr.right
-            else:
-                if curr.left is None:
-                    self._node_count += 1
-                    curr.left = Node(path)
-                    self._stats["queries_size_actual_bits"] += 1
-                curr = curr.left
-            return self._build_path(qkey, pos + 1, curr)
-        return None
+            return None
 
-    def __contains__(self, query: bytes):
+        path = path + chr(ch)
+        if ch > curr.query:
+            if curr.right is None:
+                self._node_count += 1
+                curr.right = LightNode(ch)
+            curr = curr.right
+        else:
+            if curr.left is None:
+                self._node_count += 1
+                curr.left = LightNode(ch)
+            curr = curr.left
+        self._stats["queries_size_actual_bytes"] += get_deep_size(ch)
+        return self._build_path(query, pos + 1, curr, path)
+
+    def __contains__(self, query: bytes) -> bool:
         self._stats["seeks"] += 1
-        qkey = QueryKey(query)
-        node = self._traverse(qkey)
+        path = self._traverse(query)
+        node = self.curr
 
-        if node is not None:
+        if node is not None and path == query.decode():
             self._stats["hits"] += 1
             self._last_seek = node
             return True
