@@ -114,7 +114,7 @@ class LightNode(Node):
         self.query = query
         self.left: Optional[LightNode] = None
         self.right: Optional[LightNode] = None
-        self.children = collections.OrderedDict()
+        self.children: OrderedDict[LightNode, LightNode] = collections.OrderedDict()
 
     def add_child(self, node: "LightNode"):
         if node.query >= self.query:
@@ -182,7 +182,7 @@ class Graph:
 
     def get(self, query: bytes) -> Optional[LightNode]:
         _ = self._traverse(query)
-        copy = self.curr
+        copy: LightNode = self.curr
         return copy
 
     def reset_root_node(self):
@@ -191,7 +191,7 @@ class Graph:
     def print(self):
         raise NotImplementedError
 
-    def _traverse(self, query: bytes, path: str = "") -> Optional[LightNode]:
+    def _traverse(self, query: bytes, path: str = "") -> Optional[str]:
         if not self.curr:
             return None
 
@@ -206,7 +206,7 @@ class Graph:
 
         return self._traverse(query, path + chr(ch))
 
-    def _build_path(self, query: bytes, pos: int =0, curr: Optional[LightNode] = None, path: str = ""):
+    def _build_path(self, query: bytes, pos: int = 0, curr: Optional[LightNode] = None, path: str = ""):
         curr = curr or self.root
         ch = char_at(query, pos)
         if ch is None:
@@ -234,7 +234,6 @@ class Graph:
         node = self.curr
 
         if node is not None and path == query.decode():
-            print(node.query, path, query)
             self._stats["hits"] += 1
             self._last_seek = node
             return True

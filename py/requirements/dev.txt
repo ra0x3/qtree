@@ -2,6 +2,5 @@ black
 pytest
 mypy
 pylint
-binarytree
 tqdm
 objsize

@@ -62,7 +62,9 @@ def load_queries_random(n=1_000_000):
 def load_queries_book():
     data = []
     queries_file = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "book.txt"
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "data",
+        "book.txt",
     )
     with open(queries_file, "r") as f:
         for line in f.readlines():
@@ -76,7 +78,9 @@ def load_queries_book():
 def load_queries_txt():
     data = []
     queries_file = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "queries.txt"
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "data",
+        "queries.txt",
     )
     with open(queries_file, "r") as f:
         data = f.readlines()

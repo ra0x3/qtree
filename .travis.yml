@@ -9,10 +9,10 @@ jobs:
   include:
     - stage: Lint
       name: Pylint
-      script: pylint qgraph/qgraph.py
+      script: bash scripts/lint.bash
     - stage: Typing
       name: Mypy
-      script: mypy qgraph/qgraph.py
+      script: bash scripts/pytest.bash
     - stage: Test
       name: Pytest
       script: pytest

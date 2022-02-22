@@ -1,6 +1,5 @@
 astroid==2.9.3
 attrs==21.4.0
-binarytree==6.3.0
 black==22.1.0
 click==8.0.3
 cycler==0.11.0
