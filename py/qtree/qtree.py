@@ -5,12 +5,12 @@ from typing import *
 
 logging.basicConfig(
     level=logging.DEBUG,
-    filename="qgraph_lite.log",
+    filename="qtree.log",
     format="[%(asctime)s] %(levelname)s PID:%(process)s %(module)s L%(lineno)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
-logger = logging.getLogger("qgraph_lite")
+logger = logging.getLogger("qtree")
 
 Primitive = Union[float, str, int, bool]
 

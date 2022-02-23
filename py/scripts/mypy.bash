@@ -1,4 +1,4 @@
 #!/bin/bash
 
-mypy qgraph/qgraph*.py
+mypy qtree/qtree.py
 

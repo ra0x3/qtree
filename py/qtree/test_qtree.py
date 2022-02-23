@@ -1,6 +1,6 @@
 import pytest
 
-from qgraph.qgraph import TreeNode, Tree, Children
+from qtree.qtree import TreeNode, Tree, Children
 
 
 class TestChildren:

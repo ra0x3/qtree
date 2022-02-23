@@ -1,3 +1,3 @@
 #!/bin/bash
 
-pylint qgraph/qgraph*.py
+pylint qtree/qtree.py
