@@ -11,6 +11,7 @@ from tqdm import tqdm
 from objsize import get_deep_size
 
 from qgraph.qgraph import Node, Graph
+from qgraph.qgraph_lite import Tree, TreeNode
 
 
 random.seed(49203)
@@ -18,7 +19,7 @@ random.seed(49203)
 chars = list(string.ascii_letters + string.digits)
 
 
-def random_query(n=2, m=9):
+def random_query(n=2, m=100):
     x = random.randint(n, m)
     return "".join([random.choice(chars) for _ in range(x)])
 
@@ -95,6 +96,39 @@ def avg_size_of_book():
 
 
 @timeit
+def graph_space_raw_vs_actual_tree():
+    g = Tree()
+    data = []
+    queries = load_queries_random(n=1000)
+    for i in tqdm(range(len(queries))):
+        q = queries[i]
+        g.add(q.encode())
+
+        data.append(
+            {
+                "node_count": g.node_count,
+                "queries_size_raw_bytes": g.queries_size_raw_bytes,
+                "queries_size_actual_bytes": g.queries_size_actual_bytes,
+                # "graph_size": get_deep_size(g),
+                "query_count": g.query_count,
+            }
+        )
+
+    fig = plt.figure()
+    ax = fig.subplots()
+    ax.set_title("Stats")
+    ax.set_xlabel("Query count")
+    ax.set_ylabel("Node count & Raw/Actual size")
+
+    df = pd.DataFrame(data)
+    df.plot(ax=ax)
+
+    print(df.tail(10))
+
+    plt.show()
+
+
+@timeit
 def graph_space_raw_vs_actual():
     g = Graph()
     data = []
@@ -129,4 +163,4 @@ def graph_space_raw_vs_actual():
 
 if __name__ == "__main__":
 
-    graph_space_raw_vs_actual()
+    graph_space_raw_vs_actual_tree()

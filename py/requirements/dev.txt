@@ -3,4 +3,3 @@ pytest
 mypy
 pylint
 tqdm
-objsize

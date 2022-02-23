@@ -1,5 +1,6 @@
 import logging
 import json
+import sys
 from typing import *
 
 logging.basicConfig(
@@ -90,7 +91,7 @@ class Tree:
             "misses": 0,
             "seeks": 0,
             "queries_size_raw_bytes": 0,
-            "queries_size_actual_bits": 0,
+            "queries_size_actual_bytes": 0,
         }
 
     @property
@@ -110,8 +111,8 @@ class Tree:
         return self._stats["queries_size_raw_bytes"]
 
     @property
-    def queries_size_actual_bits(self) -> int:
-        return self._stats["queries_size_actual_bits"]
+    def queries_size_actual_bytes(self) -> int:
+        return self._stats["queries_size_actual_bytes"]
 
     @property
     def node_count(self) -> int:
@@ -123,7 +124,7 @@ class Tree:
 
     def add(self, query: bytes):
         logger.debug("Adding new query('%s') with size %dB", query.decode(), len(query))
-        self._stats["queries_size_raw_bytes"] += len(query)
+        self._stats["queries_size_raw_bytes"] += sys.getsizeof(query)
         self._build_path(query)
 
     def get(self, query: bytes) -> Optional[str]:
@@ -160,36 +161,24 @@ class Tree:
             return path
 
     def _build_path(self, query: bytes, pos: int = 0):
-        if self.curr.is_root():
-            node = TreeNode(query[pos])
-
-            if node not in self.curr.children:
-                logger.debug("Adding new stem node %s to %s", node, self.root)
-                self.curr.children[node] = node
-                self._node_count += 1
-            else:
-                logger.debug("Traversing previously added stem node %s", node)
-            self.curr = self.curr.children[node]
-
+        try:
+            ch = query[pos]
+            node = TreeNode(ch)
+            if self.curr.children.has_capacity():
+                if node not in self.curr.children:
+                    logger.debug("Adding new node %s to %s", node, self.curr)
+                    self.curr.children[node] = node
+                    self._node_count += 1
+                    self._stats["queries_size_actual_bytes"] += sys.getsizeof(ch)
+                else:
+                    logger.debug("Skipping previously added node %s in %s", node, self.curr)
+                self.curr = self.curr.children[node]
             return self._build_path(query, pos + 1)
-        else:
-            try:
-                ch = query[pos]
-                node = TreeNode(ch)
-                if self.curr.children.has_capacity():
-                    if node not in self.curr.children:
-                        logger.debug("Adding new node %s to %s", node, self.curr)
-                        self.curr.children[node] = node
-                        self._node_count += 1
-                    else:
-                        logger.debug("Skipping previously added node %s in %s", node, self.curr)
-                    self.curr = self.curr.children[node]
-                return self._build_path(query, pos + 1)
-            except IndexError:
-                logger.debug("Finished adding query('%s') to tree", query.decode())
-                self._query_count += 1
-                self.reset_root_node()
-                return None
+        except IndexError:
+            logger.debug("Finished adding query('%s') to tree", query.decode())
+            self._query_count += 1
+            self.reset_root_node()
+            return None
 
     def __contains__(self, query: bytes) -> bool:
         logger.debug("Searching for query('%s') in tree", query.decode())
