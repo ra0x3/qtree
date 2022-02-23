@@ -6,12 +6,9 @@ import random
 
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
 from tqdm import tqdm
-from objsize import get_deep_size
 
-from qgraph.qgraph import Node, Graph
-from qgraph.qgraph_lite import Tree, TreeNode
+from qgraph.qgraph import Tree, TreeNode
 
 
 random.seed(49203)
@@ -90,19 +87,16 @@ def load_queries_txt():
 
 
 @timeit
-def avg_size_of_book():
-    data = load_queries_book()
-    return sum([sys.getsizeof(Node(query)) for query in data]) / len(data)
-
-
-@timeit
 def graph_space_raw_vs_actual_tree():
     g = Tree()
     data = []
-    queries = load_queries_random(n=1000)
+    queries = load_queries_random(n=100000)
+    unique_queries = set()
     for i in tqdm(range(len(queries))):
         q = queries[i]
         g.add(q.encode())
+
+        unique_queries.add(q)
 
         data.append(
             {
@@ -111,6 +105,7 @@ def graph_space_raw_vs_actual_tree():
                 "queries_size_actual_bytes": g.queries_size_actual_bytes,
                 # "graph_size": get_deep_size(g),
                 "query_count": g.query_count,
+                "unique_queries": len(unique_queries),
             }
         )
 
@@ -121,40 +116,7 @@ def graph_space_raw_vs_actual_tree():
     ax.set_ylabel("Node count & Raw/Actual size")
 
     df = pd.DataFrame(data)
-    df.plot(ax=ax)
-
-    print(df.tail(10))
-
-    plt.show()
-
-
-@timeit
-def graph_space_raw_vs_actual():
-    g = Graph()
-    data = []
-    queries = load_queries_random(n=1000)
-    for i in tqdm(range(len(queries))):
-        q = queries[i]
-        g.add(q.encode())
-
-        data.append(
-            {
-                "node_count": g.node_count,
-                "queries_size_raw_bytes": g.queries_size_raw_bytes,
-                "queries_size_actual_bytes": g.queries_size_actual_bytes,
-                "graph_size": get_deep_size(g),
-                "query_count": g.query_count,
-            }
-        )
-
-    fig = plt.figure()
-    ax = fig.subplots()
-    ax.set_title("Stats")
-    ax.set_xlabel("Query count")
-    ax.set_ylabel("Node count & Raw/Actual size")
-
-    df = pd.DataFrame(data)
-    df.plot(ax=ax)
+    df.plot(ax=ax, secondary_y="queries_size_raw_bytes")
 
     print(df.tail(10))
 

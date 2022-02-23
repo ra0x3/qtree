@@ -1,145 +1,91 @@
-import collections
-import abc
+import logging
+import json
+import sys
 from typing import *
-from objsize import get_deep_size
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    filename="qgraph_lite.log",
+    format="[%(asctime)s] %(levelname)s PID:%(process)s %(module)s L%(lineno)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
+logger = logging.getLogger("qgraph_lite")
 
 Primitive = Union[float, str, int, bool]
 
 
-def str_to_binary(s: bytes) -> bytes:
-    return "".join(list("".join([format(b, "b") for b in s]))).encode("utf-8")
+def json_log(d: Dict[str, Any]) -> str:
+    return json.dumps(d)
 
 
-def char_at(s: bytes, pos: int) -> Optional[int]:
-    try:
-        return s[pos]
-    except IndexError:
+class Children:
+    def __init__(self):
+        self._items: Dict[TreeNode, TreeNode] = {}
+        self.size: int = 30
+
+    def has_capacity(self) -> bool:
+        return len(self._items) < self.size
+
+    def __getitem__(self, node: "TreeNode") -> "TreeNode":
+        return self._items[node]
+
+    def __setitem__(self, key: "TreeNode", value: "TreeNode"):
+        self._items[key] = value
+
+    def get(self, node: "TreeNode") -> Optional["TreeNode"]:
+        if node in self:
+            return self._items[node]
         return None
 
-
-def append_bpath(b: int, path: bytes) -> bytes:
-    ch = b"1" if b == 49 else b"0"
-    return path + ch
-
-
-def is_exclusively_01(s: bytes) -> bool:
-    for ch in s:
-        if not ch in (48, 49):
-            return False
-    return True
-
-
-class LightKey:
-    def __init__(self, char: int):
-        self.char = char
-
-    def __str__(self):
-        return chr(self.char)
-
-    def __eq__(self, other: object):
-        if not isinstance(other, LightKey):
-            raise NotImplementedError
-        return self.char == other.char
-
-
-class QueryKey:
-    def __init__(self, query: bytes):
-        self._bin: bytes = str_to_binary(query) if not is_exclusively_01(query) else query
-
-    @property
-    def bin(self) -> bytes:
-        return self._bin
-
-    # def char_at(self, pos: int) -> Optional[bytes]:
-    #     try:
-    #         return chr(self._bin[pos]).encode()
-    #     except IndexError:
-    #         return None
-
-    def slice_to(self, pos: int) -> bytes:
-        return self._bin[:pos]
+    def add(self, node: "TreeNode"):
+        if node not in self:
+            self._items[node] = node
 
     def __len__(self) -> int:
-        return len(self.bin)
+        return len(self._items)
+
+    def __contains__(self, node: "TreeNode") -> bool:
+        return node in self._items
+
+
+class TreeNode:
+    def __init__(self, key: int):
+        self.key = key
+        self.children: Children = Children()
+
+    def __hash__(self) -> int:
+        return hash(self.key)
+
+    def is_root(self) -> bool:
+        return self.key == 0x2
+
+    def is_leaf(self) -> bool:
+        return not self.children
+
+    def __len__(self) -> int:
+        return len(self.children)
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, (QueryKey, bytes)):
+        if not isinstance(other, (int, TreeNode)):
             raise NotImplementedError
-        if isinstance(other, QueryKey):
-            return self.bin == other.bin
-        return other == self.bin
+        if isinstance(other, TreeNode):
+            return other.key == self.key
+        return self.key == other
 
-    def __str__(self) -> str:
-        return self.bin.decode("utf-8")
-
-    def __iter__(self):
-        for ch in self.bin:
-            yield ch
+    def __repr__(self) -> str:
+        return f"TreeNode({self.key}|{chr(self.key)})"
 
 
-Metadata = collections.namedtuple("Metadata", "visits bottiness count")
+default_start_query = 0x2
 
 
-class Node(abc.ABC):
-    @abc.abstractmethod
-    def add_child(self, node):
-        raise NotImplementedError
-
-    def is_root(self):
-        return self.query == b""
-
-    def is_leaf(self):
-        return self.right == self.left == None
-
-
-class HistoryNode(Node):
-    def __init__(self, query: bytes):
-        self.query = QueryKey(query)
-        self.left: Optional[HistoryNode] = None
-        self.right: Optional[HistoryNode] = None
-
-    @property
-    def char(self) -> Union[bytes, int]:
-        return b"-1" if self.is_root() else self.query.bin[-1]
-
-    def add_child(self, node: "HistoryNode"):
-        if node.query.bin[-1] == b"1":
-            self.right = node
-        else:
-            self.left = node
-
-
-class LightNode(Node):
-    def __init__(self, query: int):
-        self.query = query
-        self.left: Optional[LightNode] = None
-        self.right: Optional[LightNode] = None
-        self.children: OrderedDict[LightNode, LightNode] = collections.OrderedDict()
-
-    def add_child(self, node: "LightNode"):
-        if node.query >= self.query:
-            self.right = node
-        else:
-            self.left = node
-
-    def __eq__(self, other: object):
-        if not isinstance(other, (LightNode, int)):
-            raise NotImplementedError
-        if isinstance(other, LightNode):
-            return other.query == self.query
-        return other == self.query
-
-
-default_start_query = 50
-
-
-class Graph:
+class Tree:
     def __init__(self):
-        self.root = LightNode(default_start_query)
-        self.curr = self.root
+        self.root = self.curr = TreeNode(default_start_query)
         self._node_count: int = 1
         self._query_count: int = 0
-        self._last_seek: Optional[LightNode] = None
+        self._last_seek: Optional[TreeNode] = None
         self._stats: Dict[str, int] = {
             "hits": 0,
             "misses": 0,
@@ -177,15 +123,16 @@ class Graph:
         return self._query_count
 
     def add(self, query: bytes):
-        self._stats["queries_size_raw_bytes"] += get_deep_size(query)
+        logger.debug("Adding new query('%s') with size %dB", query.decode(), len(query))
+        self._stats["queries_size_raw_bytes"] += sys.getsizeof(query)
         self._build_path(query)
 
-    def get(self, query: bytes) -> Optional[LightNode]:
-        _ = self._traverse(query)
-        copy: LightNode = self.curr
-        return copy
+    def get(self, query: bytes) -> Optional[str]:
+        logger.debug("Getting query('%s') in tree", query.decode())
+        return self._traverse(query)
 
     def reset_root_node(self):
+        logger.debug("Resetting tree current node to node %s", self.root)
         self.curr = self.root
 
     def print(self):
@@ -193,49 +140,49 @@ class Graph:
 
     def _traverse(self, query: bytes, path: str = "") -> Optional[str]:
         if not self.curr:
-            return None
+            return path
+        try:
+            ch = query[len(path)]
+            node = TreeNode(ch)
+            if node not in self.curr.children:
+                return None
 
-        ch = char_at(query, len(path))
-        if ch is None:
+            logger.debug("Found previously added node %s in node %s", node, self.curr)
+            self.curr = self.curr.children[node]
+
+            return self._traverse(query, path + chr(ch))
+        except IndexError:
+            logger.debug("Found query('%s') in tree", query.decode())
+            self.reset_root_node()
             return path
 
-        if ch > self.curr.query:
-            self.curr = self.curr.right
-        else:
-            self.curr = self.curr.left
-
-        return self._traverse(query, path + chr(ch))
-
-    def _build_path(self, query: bytes, pos: int = 0, curr: Optional[LightNode] = None, path: str = ""):
-        curr = curr or self.root
-        ch = char_at(query, pos)
-        if ch is None:
+    def _build_path(self, query: bytes, pos: int = 0):
+        try:
+            ch = query[pos]
+            node = TreeNode(ch)
+            if self.curr.children.has_capacity():
+                if node not in self.curr.children:
+                    logger.debug("Adding new node %s to %s", node, self.curr)
+                    self.curr.children[node] = node
+                    self._node_count += 1
+                    self._stats["queries_size_actual_bytes"] += sys.getsizeof(ch)
+                else:
+                    logger.debug("Skipping previously added node %s in %s", node, self.curr)
+                self.curr = self.curr.children[node]
+            return self._build_path(query, pos + 1)
+        except IndexError:
+            logger.debug("Finished adding query('%s') to tree", query.decode())
             self._query_count += 1
             self.reset_root_node()
             return None
 
-        path = path + chr(ch)
-        if ch > curr.query:
-            if curr.right is None:
-                self._node_count += 1
-                curr.right = LightNode(ch)
-            curr = curr.right
-        else:
-            if curr.left is None:
-                self._node_count += 1
-                curr.left = LightNode(ch)
-            curr = curr.left
-        self._stats["queries_size_actual_bytes"] += get_deep_size(ch)
-        return self._build_path(query, pos + 1, curr, path)
-
     def __contains__(self, query: bytes) -> bool:
+        logger.debug("Searching for query('%s') in tree", query.decode())
         self._stats["seeks"] += 1
-        path = self._traverse(query)
-        node = self.curr
+        _ = self._traverse(query)
 
-        if node is not None and path == query.decode():
+        if self.curr is not None:
             self._stats["hits"] += 1
-            self._last_seek = node
             return True
 
         self._stats["misses"] += 1

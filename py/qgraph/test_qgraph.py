@@ -1,7 +1,6 @@
 import pytest
 
-from qgraph.qgraph_lite import TreeNode, Tree, Children
-
+from qgraph.qgraph import TreeNode, Tree, Children
 
 
 class TestChildren:
@@ -46,7 +45,7 @@ class Testtree:
         t.add(b"foo")
 
         assert t.query_count == 1
-        assert b"foo"  in t
+        assert b"foo" in t
 
         # 3(foo) + 1(root)
         assert t.node_count == 4
@@ -77,3 +76,11 @@ class Testtree:
 
         # 3(foo) + 1(for) + 4(froze) + 1(root)
         assert t.node_count == 9
+
+    def test_traverse_can_find_query_in_tree_and_return_path(self):
+        t = Tree()
+        t.add(b"foo")
+        t.add(b"bar")
+
+        path = t._traverse(b"foo")
+        assert path == "foo"
