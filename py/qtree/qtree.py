@@ -57,15 +57,6 @@ class TreeNode:
     def __hash__(self) -> int:
         return hash(self.key)
 
-    def is_root(self) -> bool:
-        return self.key == 0x2
-
-    def is_leaf(self) -> bool:
-        return not self.children
-
-    def __len__(self) -> int:
-        return len(self.children)
-
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, (int, TreeNode)):
             raise NotImplementedError
@@ -143,6 +134,7 @@ class Tree:
             return path
         try:
             ch = query[len(path)]
+            # FIXME: Don't need to index these with nodes, can use int8's
             node = TreeNode(ch)
             if node not in self.curr.children:
                 return None

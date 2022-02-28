@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import string
 import random
@@ -8,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from tqdm import tqdm
 
-from qgraph.qgraph import Tree, TreeNode
+from qtree.qtree import Tree, TreeNode
 
 
 random.seed(49203)
@@ -90,7 +89,7 @@ def load_queries_txt():
 def graph_space_raw_vs_actual_tree():
     g = Tree()
     data = []
-    queries = load_queries_random(n=100000)
+    queries = load_queries_book()
     unique_queries = set()
     for i in tqdm(range(len(queries))):
         q = queries[i]
