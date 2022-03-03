@@ -9,7 +9,7 @@ jobs:
     - language: python
       python: 3.9
       before_script:
-        - cd cd $TRAVIS_BUILD_DIR/py && pip install --upgrade -r requirements/requirements.lock
+        - cd $TRAVIS_BUILD_DIR/py && pip install --upgrade -r requirements/requirements.lock
       script:
         - bash scripts/ci.bash
     - language: rust
