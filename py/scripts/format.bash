@@ -1,3 +1,3 @@
 #!/bin/bash
 
-black qgraph/*.py bench/*.py -l 140
+black qtree/*.py bench/*.py -l 140
