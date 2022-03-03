@@ -9,12 +9,18 @@ jobs:
     - language: python
       python: 3.9
       before_script:
-        - cd $TRAVIS_BUILD_DIR/py && pip install --upgrade -r requirements/requirements.lock
+        - cd $TRAVIS_BUILD_DIR/py
+        - pip install --upgrade -r requirements/requirements.lock
       script:
-        - bash scripts/ci.bash
+        - bash scripts/lint.bash
+        - bash scripts/mypy.bash
+        - bash scripts/pytest.bash
     - language: rust
       rust: nightly
       before_script:
-        - cd $TRAVIS_BUILD_DIR/rust/qtree && cargo build
+        - cd $TRAVIS_BUILD_DIR/rust/qtree
+        - rustup component add clippy
       script:
+        - cargo clippy
+        - cargo build
         - cargo test -- --nocapture

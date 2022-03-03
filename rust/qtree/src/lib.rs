@@ -4,7 +4,7 @@ pub mod node {
     use std::hash::{Hash, Hasher};
     use std::rc::Rc;
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[derive(Debug, Clone)]
     pub struct Node {
         pub key: u8,
         pub children: HashMap<u8, Rc<RefCell<Node>>>,
@@ -25,7 +25,7 @@ pub mod node {
         }
 
         pub fn add_child(&mut self, other: Node) {
-            let key = other.key.clone();
+            let key = other.key;
             self.children.insert(key, Rc::new(RefCell::new(other)));
         }
 
@@ -76,7 +76,7 @@ pub mod qtree {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    pub fn get_char<'a>(v: &'a Vec<u8>, pos: usize) -> Option<u8> {
+    pub fn get_char(v: &'_ [u8], pos: usize) -> Option<u8> {
         if v.len() > pos {
             return Some(v[pos]);
         }
@@ -93,6 +93,7 @@ pub mod qtree {
     }
 
     impl Qtree {
+        #[cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
         pub fn new() -> Self {
             let root = Rc::new(RefCell::new(Node::new(0)));
             let curr = root.clone();
@@ -141,7 +142,7 @@ pub mod qtree {
             path
         }
 
-        pub fn traverse<'a>(&mut self, query: Vec<u8>, path: &'a mut Vec<u8>) {
+        pub fn traverse(&mut self, query: Vec<u8>, path: &'_ mut Vec<u8>) {
             if let Some(ch) = get_char(&query, path.len()) {
                 if let Some(next) = self.curr.clone().borrow().get_child(&ch) {
                     self.curr = next.clone();
@@ -152,8 +153,8 @@ pub mod qtree {
             self.reset_curr();
         }
 
-        fn build_path<'a>(&mut self, query: &'a Vec<u8>, pos: usize) {
-            if let Some(ch) = get_char(&query, pos) {
+        fn build_path(&mut self, query: &'_ [u8], pos: usize) {
+            if let Some(ch) = get_char(query, pos) {
                 let node = Node::new(ch);
                 if !self.curr.borrow().contains_child(&ch) {
                     self.curr.borrow_mut().add_child(node);
@@ -175,7 +176,7 @@ pub mod qtree {
                 return true;
             }
 
-            return false;
+            false
         }
     }
 
