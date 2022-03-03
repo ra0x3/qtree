@@ -1,5 +1,4 @@
-
-mod node {
+pub mod node {
     use std::cell::RefCell;
     use std::collections::HashMap;
     use std::hash::{Hash, Hasher};
@@ -71,7 +70,7 @@ mod node {
     }
 }
 
-mod qtree {
+pub mod qtree {
 
     use crate::node::Node;
     use std::cell::RefCell;
@@ -88,6 +87,8 @@ mod qtree {
         root: Rc<RefCell<Node>>,
         curr: Rc<RefCell<Node>>,
         node_count: u32,
+        raw_size_bytes: u32,
+        actual_size_bytes: u32,
         query_count: u32,
     }
 
@@ -98,6 +99,8 @@ mod qtree {
             Qtree {
                 root,
                 curr,
+                actual_size_bytes: 0,
+                raw_size_bytes: 0,
                 node_count: 1,
                 query_count: 0,
             }
@@ -111,14 +114,23 @@ mod qtree {
             self.query_count
         }
 
+        pub fn actual_size_bytes(&self) -> u32 {
+            self.actual_size_bytes
+        }
+
+        pub fn raw_size_bytes(&self) -> u32 {
+            self.raw_size_bytes
+        }
+
         fn reset_curr(&mut self) {
             self.curr = self.root.clone();
         }
 
         pub fn add(&mut self, query: String) {
             let v = query.into_bytes().to_vec();
-            self.build_path(v, 0);
+            self.build_path(&v, 0);
             self.query_count += 1;
+            self.raw_size_bytes += std::mem::size_of_val(&v) as u32;
         }
 
         pub fn get(&mut self, query: String) -> Vec<u8> {
@@ -140,12 +152,13 @@ mod qtree {
             self.reset_curr();
         }
 
-        fn build_path<'a>(&mut self, query: Vec<u8>, pos: usize) {
+        fn build_path<'a>(&mut self, query: &'a Vec<u8>, pos: usize) {
             if let Some(ch) = get_char(&query, pos) {
                 let node = Node::new(ch);
                 if !self.curr.borrow().contains_child(&ch) {
                     self.curr.borrow_mut().add_child(node);
                     self.node_count += 1;
+                    self.actual_size_bytes += std::mem::size_of_val(&ch) as u32;
                 }
                 let next = self.curr.borrow().get_child(&ch).unwrap().clone();
                 self.curr = next;
@@ -209,7 +222,8 @@ mod qtree {
         }
 
         #[test]
-        pub fn test_can_add_multiple_queries_to_graph_and_only_the_marginal_difference_is_added_to_tree() {
+        pub fn test_can_add_multiple_queries_to_graph_and_only_the_marginal_difference_is_added_to_tree(
+        ) {
             let mut t = Qtree::new();
             assert_eq!(t.node_count(), 1);
             assert_eq!(t.query_count(), 0);
@@ -221,6 +235,8 @@ mod qtree {
             // (3)foo + (3)bar (2)foozo + (1)root = 9
             assert_eq!(t.node_count(), 9);
             assert_eq!(t.query_count(), 3);
+            assert_eq!(t.actual_size_bytes(), 8);
+            assert_eq!(t.raw_size_bytes(), 72);
         }
 
         #[test]
